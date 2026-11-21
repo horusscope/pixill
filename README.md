@@ -43,7 +43,7 @@ directly with every other.
 You need Windows 10 or 11. Pick one from the
 [latest release](https://github.com/horusscope/pixill/releases/latest):
 
-| | `Pixill.exe` | `Pixill-1.0.0.msi` |
+| | `Pixill.exe` | `Pixill-1.0.1.msi` |
 |---|---|---|
 | What it is | The whole program in one file | An installer |
 | Where it goes | Wherever you put it | `C:\Program Files\Pixill`, with a Start menu entry |
@@ -55,12 +55,22 @@ You need Windows 10 or 11. Pick one from the
 Run it and the widget appears at the top right of your main display with five
 example symbols. Click the weather block and type your city.
 
-Neither file is code-signed, so Windows SmartScreen may warn the first time
-you run one. `SHA256SUMS.txt` in the release lets you check that what you
-downloaded is what was published.
+Both files are built by GitHub Actions from the tagged commit, never on a
+private machine, and each carries a signed build attestation you can check
+(needs the [GitHub CLI](https://cli.github.com/)):
+
+```
+gh attestation verify Pixill.exe -R horusscope/pixill
+```
+
+`SHA256SUMS.txt` in the release does the simpler job of confirming the
+download arrived intact. Neither file has a Windows (Authenticode) signature
+yet, so SmartScreen may still warn the first time you run one;
+[`docs/signing.md`](docs/signing.md) explains what is in place and what is
+pending.
 
 Installer switches, for scripted installs:
-`msiexec /i Pixill-1.0.0.msi AUTOSTART=0` leaves it out of Windows start-up,
+`msiexec /i Pixill-1.0.1.msi AUTOSTART=0` leaves it out of Windows start-up,
 and `LAUNCH=0` stops it starting when the install finishes. Uninstalling
 leaves your settings file in place.
 
@@ -157,6 +167,23 @@ Settings apply without a restart.
 packages. The web-based widget hosts it replaces are the reason for the
 memory difference above.
 
+## Privacy
+
+Pixill has no account, no telemetry, no update check and no server of its
+own. It makes exactly two kinds of request, both needed to show what you
+asked it to show, and only while it is visible:
+
+- to **Yahoo Finance**, the symbols in your list (and what you type in the
+  symbol search box);
+- to **Open-Meteo**, the latitude and longitude of the city you chose (and
+  what you type in the city search box).
+
+Both services see your IP address, as any website does, and their own
+privacy policies apply:
+[Yahoo](https://legal.yahoo.com/us/en/yahoo/privacy/index.html),
+[Open-Meteo](https://open-meteo.com/en/terms). Nothing else leaves your
+computer, and your settings stay in the local `config.json`.
+
 ## Limits
 
 - **The stock data is unofficial.** Quotes come from the public JSON
@@ -194,6 +221,7 @@ installer\Pixill.wxs   the MSI, as a WiX Toolset 3 definition
 tools\build-msi.ps1    builds dist\ (exe, MSI, SHA256SUMS.txt); fetches WiX once into .wix\
 tools\make-gif.ps1     turns --frames output into the looping GIF on this page
 tools\make-anatomy.ps1 draws the labelled weather-row figure
+.github\workflows\build.yml  the public build: test, attest, publish a release for a tag
 ```
 
 Two switches exist for checking changes without touching a running copy:

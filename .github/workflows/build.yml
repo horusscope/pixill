@@ -1,0 +1,109 @@
+# Builds Pixill on a GitHub-hosted Windows machine, checks that the result runs, and records where it came
+# from. Pushing a tag vX.Y.Z also publishes dist\ as the release for that version.
+#
+# What "signed" means here:
+#   - Every build from main or from a tag gets a GitHub artifact attestation: a Sigstore-signed statement,
+#     kept in a public log, that these exact files were built by this workflow from this commit.
+#     Check a download with:  gh attestation verify Pixill.exe -R horusscope/pixill
+#   - Authenticode signing (the kind Windows SmartScreen looks at) is wired in through SignPath but stays
+#     switched off until the repository variable SIGNPATH_ORGANIZATION_ID is set. See docs/signing.md.
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write        # create the release for a tag
+      id-token: write        # prove to Sigstore that this workflow is the signer
+      attestations: write    # store the attestation with the repository
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Read the version
+        id: version
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path src\AssemblyInfo.cs -Pattern 'AssemblyVersion\("(\d+\.\d+\.\d+)\.\d+"\)').Matches[0].Groups[1].Value
+          if (-not $v) { throw 'no AssemblyVersion found in src\AssemblyInfo.cs' }
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -ne "v$v") {
+            throw "tag $env:GITHUB_REF_NAME does not match the version in src\AssemblyInfo.cs ($v)"
+          }
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      - name: Build exe and MSI
+        shell: pwsh
+        run: .\tools\build-msi.ps1 -Version ${{ steps.version.outputs.version }}
+
+      - name: Check that the built program runs
+        shell: pwsh
+        run: |
+          # Runs the real program once against the real data services and has it draw itself to a PNG.
+          $p = Start-Process dist\Pixill.exe -ArgumentList '--snapshot', "$PWD\snapshot" -PassThru
+          if (-not $p.WaitForExit(90000)) { $p.Kill(); throw 'snapshot run did not finish in 90 s' }
+          $png = Get-ChildItem snapshot -Filter *.png -ErrorAction SilentlyContinue
+          if (-not $png) { throw 'snapshot run produced no image' }
+          $png | ForEach-Object { '{0}  {1:N0} bytes' -f $_.Name, $_.Length }
+
+      - name: Upload the snapshot
+        uses: actions/upload-artifact@v7
+        with:
+          name: snapshot
+          path: snapshot
+
+      - name: Upload the unsigned build
+        id: upload
+        uses: actions/upload-artifact@v7
+        with:
+          name: pixill-${{ steps.version.outputs.version }}
+          path: |
+            dist/Pixill.exe
+            dist/Pixill-${{ steps.version.outputs.version }}.msi
+
+      # Dormant until SignPath Foundation has accepted the project (docs/signing.md).
+      - name: Authenticode-sign through SignPath
+        if: vars.SIGNPATH_ORGANIZATION_ID != '' && github.ref_type == 'tag'
+        uses: signpath/github-action-submit-signing-request@v3
+        with:
+          api-token: ${{ secrets.SIGNPATH_API_TOKEN }}
+          organization-id: ${{ vars.SIGNPATH_ORGANIZATION_ID }}
+          project-slug: pixill
+          signing-policy-slug: release-signing
+          github-artifact-id: ${{ steps.upload.outputs.artifact-id }}
+          wait-for-completion: true
+          output-artifact-directory: dist
+
+      - name: Write checksums
+        shell: pwsh
+        run: |
+          $v = '${{ steps.version.outputs.version }}'
+          $lines = foreach ($f in 'Pixill.exe', "Pixill-$v.msi") { (Get-FileHash "dist\$f" -Algorithm SHA256).Hash.ToLower() + '  ' + $f }
+          [IO.File]::WriteAllText("$PWD\dist\SHA256SUMS.txt", ($lines -join "`n") + "`n", (New-Object Text.UTF8Encoding $false))
+          Get-Content dist\SHA256SUMS.txt
+
+      - name: Attest where these files came from
+        if: github.event_name != 'pull_request'
+        uses: actions/attest@v4
+        with:
+          subject-path: |
+            dist/Pixill.exe
+            dist/Pixill-${{ steps.version.outputs.version }}.msi
+
+      - name: Publish the release
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = '${{ steps.version.outputs.version }}'
+          gh release create "v$v" "dist/Pixill.exe" "dist/Pixill-$v.msi" "dist/SHA256SUMS.txt" --title "Pixill $v" --notes-file docs/release-notes.md --verify-tag

@@ -4,9 +4,11 @@
 # Needs the WiX Toolset 3 command-line tools (candle.exe, light.exe). If they are not installed, the
 # official binaries are downloaded once from the WiX GitHub releases into .wix\ (checked against a pinned
 # SHA-256) and used from there. Nothing is installed on the machine.
-param([string]$Version = '1.0.0')
+param([string]$Version)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path $PSScriptRoot -Parent
+# The version lives in one place, src\AssemblyInfo.cs, so the exe and the installer cannot disagree.
+if (-not $Version) { $Version = (Select-String -Path "$root\src\AssemblyInfo.cs" -Pattern 'AssemblyVersion\("(\d+\.\d+\.\d+)\.\d+"\)').Matches[0].Groups[1].Value }
 
 & "$root\build.ps1" | Out-Host
 
