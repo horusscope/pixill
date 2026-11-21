@@ -192,8 +192,9 @@ Windows 10 and 11, so there is no runtime to install, and Windows also ships
 a C# compiler, so there is nothing to install to build either. The code
 stays within what that older compiler accepts. Drawing is done by hand
 (GDI text, GDI+ rectangles); there is no layout framework and there are no
-packages. The resulting program is about 70 KB and settles at about 50 MB of
-working set, most of which is the runtime itself.
+packages. The resulting program is a single exe of about 175 KB, most of it the
+embedded font, and settles at about 50 MB of working set, most of which is
+the runtime itself.
 
 A native C++ program would be smaller still. It was passed over because the
 whole thing was designed by iterating on its appearance, and a change-build-
@@ -210,6 +211,24 @@ touching a running copy. Every visual change was checked this way, including
 against deliberately awkward data: a city with rain all week, a city with a
 forty-degree temperature spread, a light theme. `--frames <n>` adds animation
 frames, which is how the animated image in the README was produced.
+
+## Distribution
+
+The default font is compiled into the exe, so the program is one file and can
+be run from anywhere. Settings normally sit beside the exe, which keeps a
+copied folder self-contained. Under Program Files that is not writable, so an
+installed copy keeps them in `%APPDATA%\Pixill` instead; the rule is decided
+by where the exe is, not by a switch.
+
+The MSI installs for all users but writes the start-up entry for the
+installing user only, in the same per-user place the tray menu's switch uses,
+so the switch keeps working after an install. Installers ask a running program
+to close by posting a close message to every one of its windows, including
+hidden ones. Windows Forms gives a taskbar-less form a hidden owner window, and
+closing that owner destroys the form without the normal close events; the
+first installer test left the program running with no window for that reason.
+Pixill now also exits when its window is destroyed from outside, and the
+uninstall was re-tested with the program running.
 
 ## Known gaps
 

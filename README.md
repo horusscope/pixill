@@ -10,8 +10,8 @@ weather in one window that sits on the wallpaper, underneath everything else.
 Pixill was written to replace the Windows Widgets board for the two things its
 author actually looked at. On the author's machine the Widgets board was
 holding about 770 MB of memory. Pixill holds about 50 MB, makes no network
-requests while it is covered by another window, and is a 70 KB program that
-builds with the compiler already inside Windows.
+requests while it is covered by another window, and is a single 175 KB exe
+that builds with the compiler already inside Windows.
 
 - **Stocks:** name, a zig-zag trend arrow, price, and the day's change in
   points and percent.
@@ -38,21 +38,41 @@ default, roughly where "heavy rain" begins); if any hour in the week exceeds
 that, the scale steps up for the whole week so every row still compares
 directly with every other.
 
-## Try it
+## Get it
 
-You need Windows 10 or 11. Nothing has to be installed.
+You need Windows 10 or 11. Pick one from the
+[latest release](https://github.com/horusscope/pixill/releases/latest):
+
+| | `Pixill.exe` | `Pixill-1.0.0.msi` |
+|---|---|---|
+| What it is | The whole program in one file | An installer |
+| Where it goes | Wherever you put it | `C:\Program Files\Pixill`, with a Start menu entry |
+| Starts with Windows | Only if you tick it in the tray menu | Yes, and you can untick it in the tray menu |
+| Settings file | `config.json` beside the exe | `%APPDATA%\Pixill\config.json` |
+| Needs admin | No | Yes |
+| To remove | Exit from the tray icon and delete the file | Settings, Apps, Pixill, Uninstall |
+
+Run it and the widget appears at the top right of your main display with five
+example symbols. Click the weather block and type your city.
+
+Neither file is code-signed, so Windows SmartScreen may warn the first time
+you run one. `SHA256SUMS.txt` in the release lets you check that what you
+downloaded is what was published.
+
+Installer switches, for scripted installs:
+`msiexec /i Pixill-1.0.0.msi AUTOSTART=0` leaves it out of Windows start-up,
+and `LAUNCH=0` stops it starting when the install finishes. Uninstalling
+leaves your settings file in place.
+
+### Or build it yourself
+
+Nothing has to be installed for this either.
 
 1. Download or clone this repository.
 2. Right-click `build.ps1` and choose **Run with PowerShell** (or run
    `powershell -ExecutionPolicy Bypass -File build.ps1`). It produces
    `bin\Pixill.exe` in a few seconds.
-3. Run `bin\Pixill.exe`. The widget appears at the top right of your main
-   display with five example symbols. Click the weather block and type your
-   city.
-
-To remove it, exit from the tray icon and delete the folder. Pixill writes
-nothing outside its own folder except, if you tick **Start with Windows**, one
-entry in your user startup list.
+3. Run `bin\Pixill.exe`.
 
 ## Using it
 
@@ -70,8 +90,10 @@ The dots in the top strip turn red when a data source cannot be reached.
 
 ## Settings
 
-Everything lives in `bin\config.json`, created on first run. Save the file and
-the widget reloads.
+Everything lives in one `config.json`, created on first run: beside the exe,
+or in `%APPDATA%\Pixill` when Pixill is installed under Program Files.
+**Edit config…** in the right-click menu opens it. Save the file and the
+widget reloads.
 
 | Key | Default | Meaning |
 |---|---|---|
@@ -155,8 +177,9 @@ memory difference above.
 `build.ps1` uses the C# compiler that ships with Windows
 (`%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe`), or the newer one
 from Visual Studio Build Tools when present. It compiles `src\*.cs` into
-`bin\Pixill.exe`, has the fresh program write its own icon, and copies the
-fonts beside it.
+`bin\Pixill.exe` with the default font embedded, and has the fresh program
+write its own icon. The `fonts` folder is copied beside the exe only so that
+an alternative font can be selected in the settings.
 
 ```
 src\Program.cs      start-up, tray icon, config reload, theme and visibility triggers
@@ -167,6 +190,10 @@ src\Config.cs       config.json
 src\SearchPopup.cs  the type-to-search box
 src\AppIcon.cs      the logo, as a 16x16 grid
 src\Native.cs       Win32 declarations and the "how much of me is visible" test
+installer\Pixill.wxs   the MSI, as a WiX Toolset 3 definition
+tools\build-msi.ps1    builds dist\ (exe, MSI, SHA256SUMS.txt); fetches WiX once into .wix\
+tools\make-gif.ps1     turns --frames output into the looping GIF on this page
+tools\make-anatomy.ps1 draws the labelled weather-row figure
 ```
 
 Two switches exist for checking changes without touching a running copy:

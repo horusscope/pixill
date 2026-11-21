@@ -27,7 +27,7 @@ namespace Pixill
             // GZip only: Open-Meteo answers "deflate" with a zlib wrapper that .NET Framework cannot decode.
             var h = new HttpClientHandler { AutomaticDecompression = DecompressionMethods.GZip };
             var c = new HttpClient(h) { Timeout = TimeSpan.FromSeconds(15) };
-            c.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Pixill/0.1");
+            c.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Pixill/1.0");
             c.DefaultRequestHeaders.TryAddWithoutValidation("Accept", "application/json");
             return c;
         }

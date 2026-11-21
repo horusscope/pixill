@@ -123,8 +123,10 @@ namespace Pixill
 
         void BuildWidgets()
         {
+            rebuilding = true;
             foreach (var w in widgets) { w.Close(); w.Dispose(); }
             widgets.Clear();
+            rebuilding = false;
             Theme.Configure(Cfg);
             Theme.ApplySystem(Cfg);
             if (Cfg.stocks.enabled || Cfg.weather.enabled) widgets.Add(new DeskWidget(this));
@@ -136,6 +138,14 @@ namespace Pixill
                     w.ForceVisible = true;
                     w.Fetched += delegate { if (--snapshotPending == 0) SaveSnapshots(); };
                 }
+                // If something else closes the window (an installer or Windows asking the program to shut
+                // down, or Alt+F4), exit completely instead of lingering as a tray icon with no widget.
+                w.FormClosed += delegate { if (!rebuilding && !quitting) Quit(); };
+                // An installer posts its close request to every window of the process, including the hidden
+                // owner window Windows Forms gives a taskbar-less form. Closing that owner destroys the widget
+                // without a normal close, so watch for the window disappearing as well.
+                var widget = w;
+                w.HandleDestroyed += delegate { if (!rebuilding && !quitting && !widget.RecreatingHandle) Quit(); };
                 w.Show();
             }
         }
@@ -269,14 +279,22 @@ namespace Pixill
             }
         }
 
+        bool rebuilding, quitting;
+
         public void Quit()
         {
-            if (hook != IntPtr.Zero) { Native.UnhookWinEvent(hook); hook = IntPtr.Zero; }
-            SystemEvents.SessionSwitch -= OnSessionSwitch;
-            SystemEvents.UserPreferenceChanged -= OnPreferenceChanged;
-            if (watcher != null) watcher.Dispose();
-            if (tray != null) { tray.Visible = false; tray.Dispose(); }
-            ExitThread();
+            if (quitting) return;
+            quitting = true;
+            // Each step is independent: when an installer closes the program it may already have destroyed
+            // some of our hidden helper windows, and one failed clean-up step must not stop the exit.
+            try { if (hook != IntPtr.Zero) { Native.UnhookWinEvent(hook); hook = IntPtr.Zero; } } catch { }
+            try { SystemEvents.SessionSwitch -= OnSessionSwitch; SystemEvents.UserPreferenceChanged -= OnPreferenceChanged; } catch { }
+            try { if (watcher != null) watcher.Dispose(); } catch { }
+            try { if (tray != null) { tray.Visible = false; tray.Dispose(); } } catch { }
+            try { ExitThread(); } catch { }
+            // Belt and braces: if the message loop is in no state to wind down by itself, leave anyway.
+            var bail = new System.Threading.Timer(delegate { Environment.Exit(0); }, null, 1500, Timeout.Infinite);
+            GC.KeepAlive(bail);
         }
     }
 }

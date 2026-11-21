@@ -17,7 +17,7 @@ function Compile {
     $iconArg = @()
     if (Test-Path $ico) { $iconArg = @("/win32icon:$ico") }
     & $csc /nologo /target:winexe /platform:x64 /optimize+ /warn:4 `
-        "/out:$exe" @iconArg `
+        "/out:$exe" @iconArg "/resource:$root\fonts\Jersey15-Regular.ttf,Pixill.Jersey15.ttf" `
         /r:System.dll /r:System.Core.dll /r:System.Drawing.dll /r:System.Windows.Forms.dll `
         /r:System.Net.Http.dll /r:System.Web.Extensions.dll `
         "$root\src\*.cs"

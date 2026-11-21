@@ -47,9 +47,44 @@ namespace Pixill
         public StocksConfig stocks = new StocksConfig();
         public WeatherConfig weather = new WeatherConfig();
 
+        static string filePath;
+
+        /// <summary>
+        /// Where config.json lives. Normally beside the exe, so a copied folder carries its settings with it.
+        /// When the exe is installed under Program Files (which ordinary users cannot write to), it is
+        /// %APPDATA%\Pixill\config.json instead.
+        /// </summary>
         public static string FilePath
         {
-            get { return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.json"); }
+            get { return filePath ?? (filePath = ResolvePath()); }
+        }
+
+        static string ResolvePath()
+        {
+            string exeDir = AppDomain.CurrentDomain.BaseDirectory;
+            if (!IsUnder(exeDir, Environment.SpecialFolder.ProgramFiles) && !IsUnder(exeDir, Environment.SpecialFolder.ProgramFilesX86) && CanWrite(exeDir))
+                return Path.Combine(exeDir, "config.json");
+            string dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Pixill");
+            try { Directory.CreateDirectory(dir); } catch { }
+            return Path.Combine(dir, "config.json");
+        }
+
+        static bool IsUnder(string path, Environment.SpecialFolder folder)
+        {
+            string root = Environment.GetFolderPath(folder);
+            return !string.IsNullOrEmpty(root) && path.StartsWith(root.TrimEnd('\\') + "\\", StringComparison.OrdinalIgnoreCase);
+        }
+
+        static bool CanWrite(string dir)
+        {
+            try
+            {
+                string probe = Path.Combine(dir, ".pixill-write-test-" + Guid.NewGuid().ToString("N"));
+                File.WriteAllText(probe, "");
+                File.Delete(probe);
+                return true;
+            }
+            catch { return false; }
         }
 
         public static DateTime LastSelfWriteUtc = DateTime.MinValue;

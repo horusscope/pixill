@@ -173,15 +173,43 @@ namespace Pixill
             if (path == loadedPath) return;
             loadedPath = path;
             pixelFamily = null;
-            if (path == null || !System.IO.File.Exists(path)) return;
+            if (path == null) return;
             try
             {
-                Native.AddFontResourceEx(path, 0x10 /* FR_PRIVATE */, IntPtr.Zero);    // lets GDI text drawing find the face
-                pixelFonts = new System.Drawing.Text.PrivateFontCollection();
-                pixelFonts.AddFontFile(path);
+                if (System.IO.File.Exists(path))
+                {
+                    Native.AddFontResourceEx(path, 0x10 /* FR_PRIVATE */, IntPtr.Zero);    // lets GDI text drawing find the face
+                    pixelFonts = new System.Drawing.Text.PrivateFontCollection();
+                    pixelFonts.AddFontFile(path);
+                }
+                else if (!LoadEmbeddedFont(System.IO.Path.GetFileName(path))) return;
                 pixelFamily = pixelFonts.Families[0];
             }
             catch { pixelFamily = null; }
+        }
+
+        /// <summary>
+        /// The default font is also compiled into the exe, so a lone Pixill.exe keeps its look with no
+        /// fonts folder beside it. A font file on disk, when present, takes precedence.
+        /// </summary>
+        static bool LoadEmbeddedFont(string fileName)
+        {
+            if (!string.Equals(fileName, "Jersey15-Regular.ttf", StringComparison.OrdinalIgnoreCase)) return false;
+            using (var s = typeof(Theme).Assembly.GetManifestResourceStream("Pixill.Jersey15.ttf"))
+            {
+                if (s == null) return false;
+                var bytes = new byte[s.Length];
+                int read = 0;
+                while (read < bytes.Length) { int n = s.Read(bytes, read, bytes.Length - read); if (n <= 0) break; read += n; }
+                // Both font APIs keep pointing at this memory, so it is deliberately never freed.
+                IntPtr mem = System.Runtime.InteropServices.Marshal.AllocCoTaskMem(bytes.Length);
+                System.Runtime.InteropServices.Marshal.Copy(bytes, 0, mem, bytes.Length);
+                uint count = 0;
+                Native.AddFontMemResourceEx(mem, (uint)bytes.Length, IntPtr.Zero, ref count);    // for GDI text drawing
+                pixelFonts = new System.Drawing.Text.PrivateFontCollection();
+                pixelFonts.AddMemoryFont(mem, bytes.Length);
+                return true;
+            }
         }
 
         /// <summary>Call at the start of painting: pixel fonts are drawn without smoothing so every pixel is solid.</summary>

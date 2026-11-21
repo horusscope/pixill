@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Pixill installer (WiX Toolset 3). Built by tools\build-msi.ps1.
+
+  What it does:
+    - installs Pixill.exe and the licence files into C:\Program Files\Pixill (for all users, needs admin)
+    - adds a Start menu shortcut
+    - makes Pixill start with Windows for the installing user (the same per-user entry the tray menu's
+      "Start with Windows" switch controls, so it can be turned off there afterwards)
+    - starts Pixill when the install finishes
+
+  Settings are not installed. The program keeps them in %APPDATA%\Pixill\config.json when it runs from
+  Program Files, creates that file on first run, and uninstalling leaves it in place.
+
+  Switches:  msiexec /i Pixill-x.y.z.msi AUTOSTART=0   do not start with Windows
+             msiexec /i Pixill-x.y.z.msi LAUNCH=0      do not start Pixill after installing
+-->
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi" xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
+  <Product Id="*" Name="Pixill" Language="1033" Version="$(var.Version)" Manufacturer="Pixill"
+           UpgradeCode="AC2B9D73-0886-4D63-A09B-B6B46F55C7CF">
+    <Package InstallerVersion="500" Compressed="yes" InstallScope="perMachine" Platform="x64"
+             Description="Pixill: retro-pixel desktop widget for stocks and weather" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Pixill is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="PixillIcon.ico" SourceFile="$(var.Root)\assets\app.ico" />
+    <Property Id="ARPPRODUCTICON" Value="PixillIcon.ico" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/horusscope/pixill" />
+    <Property Id="ARPNOMODIFY" Value="1" />
+    <Property Id="AUTOSTART" Value="1" Secure="yes" />
+    <Property Id="LAUNCH" Value="1" Secure="yes" />
+
+    <!-- On upgrade or uninstall, ask a running Pixill to close so its exe is not in use. -->
+    <util:CloseApplication Id="ClosePixill" Target="Pixill.exe" CloseMessage="yes" RebootPrompt="no" />
+
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="ProgramFiles64Folder">
+        <Directory Id="INSTALLFOLDER" Name="Pixill" />
+      </Directory>
+      <Directory Id="ProgramMenuFolder" />
+    </Directory>
+
+    <ComponentGroup Id="PixillFiles" Directory="INSTALLFOLDER">
+      <Component Id="Exe" Guid="*" Win64="yes">
+        <File Id="PixillExe" Source="$(var.Root)\bin\Pixill.exe" KeyPath="yes">
+          <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="Pixill"
+                    Description="Stocks and weather on the desktop" WorkingDirectory="INSTALLFOLDER"
+                    Icon="PixillIcon.ico" Advertise="yes" />
+        </File>
+      </Component>
+      <Component Id="Licence" Guid="*" Win64="yes">
+        <File Id="LicenceTxt" Name="LICENSE.txt" Source="$(var.Root)\LICENSE" KeyPath="yes" />
+      </Component>
+      <Component Id="ThirdParty" Guid="*" Win64="yes">
+        <File Id="ThirdPartyMd" Name="THIRD_PARTY.md" Source="$(var.Root)\THIRD_PARTY.md" KeyPath="yes" />
+      </Component>
+      <Component Id="FontLicence" Guid="*" Win64="yes">
+        <File Id="FontLicenceTxt" Name="LICENSE-OFL-Jersey15.txt" Source="$(var.Root)\fonts\LICENSE-OFL-Jersey15.txt" KeyPath="yes" />
+      </Component>
+      <Component Id="Autostart" Guid="*" Win64="yes">
+        <Condition>AUTOSTART = "1"</Condition>
+        <RegistryValue Root="HKCU" Key="Software\Microsoft\Windows\CurrentVersion\Run" Name="Pixill" Type="string"
+                       Value="&quot;[INSTALLFOLDER]Pixill.exe&quot;" KeyPath="yes" />
+      </Component>
+    </ComponentGroup>
+
+    <Feature Id="Main" Title="Pixill" Level="1">
+      <ComponentGroupRef Id="PixillFiles" />
+    </Feature>
+
+    <!-- Start Pixill once the install has finished, as the person installing (not elevated). -->
+    <CustomAction Id="SetLaunchTarget" Property="WixShellExecTarget" Value="[#PixillExe]" />
+    <CustomAction Id="LaunchPixill" BinaryKey="WixCA" DllEntry="WixShellExec" Impersonate="yes" Return="ignore" />
+    <InstallExecuteSequence>
+      <Custom Action="SetLaunchTarget" After="InstallFinalize">LAUNCH = "1" AND NOT Installed</Custom>
+      <Custom Action="LaunchPixill" After="SetLaunchTarget">LAUNCH = "1" AND NOT Installed</Custom>
+    </InstallExecuteSequence>
+  </Product>
+</Wix>
