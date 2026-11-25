@@ -51,6 +51,9 @@ namespace Pixill
         readonly List<WidgetForm> widgets = new List<WidgetForm>();
         readonly string snapshotDir;
         readonly System.Windows.Forms.Timer reloadTimer = new System.Windows.Forms.Timer { Interval = 300 };
+        IntPtr reorderHook, rootWindow;
+        Native.WinEventProc reorderProc;
+        bool lifted;                            // the widget is floating above a raised desktop
         NotifyIcon tray;
         FileSystemWatcher watcher;
         Control marshal;                        // gives background threads a way onto the UI thread
@@ -102,6 +105,9 @@ namespace Pixill
             watcher.Renamed += delegate (object s, RenamedEventArgs e) { changed(s, e); };
             watcher.EnableRaisingEvents = true;
 
+            rootWindow = Native.GetDesktopWindow();
+            reorderProc = OnTopLevelReorder;
+            reorderHook = Native.SetWinEventHook(Native.EVENT_OBJECT_REORDER, Native.EVENT_OBJECT_REORDER, IntPtr.Zero, reorderProc, 0, 0, 0);
             hookProc = OnForegroundChanged;
             hook = Native.SetWinEventHook(Native.EVENT_SYSTEM_FOREGROUND, Native.EVENT_SYSTEM_FOREGROUND, IntPtr.Zero, hookProc, 0, 0, 0);
             SystemEvents.SessionSwitch += OnSessionSwitch;
@@ -199,11 +205,27 @@ namespace Pixill
 
         void OnForegroundChanged(IntPtr h, uint evt, IntPtr hwnd, int idObject, int idChild, uint thread, uint time)
         {
-            if (widgets.Count == 0) return;
+            if (widgets.Count > 0) ApplyShowDesktop(hwnd);
+        }
+
+        // Windows announces the desktop as the new foreground window before it has raised it, so the check above
+        // says "not raised" at that instant (measured: the raise follows about 12 ms later). The raise itself is
+        // reported as a reorder of the top-level windows, which is what this responds to. Reorders are frequent,
+        // so nothing is examined unless the desktop has the foreground or the widget is currently lifted.
+        void OnTopLevelReorder(IntPtr h, uint evt, IntPtr hwnd, int idObject, int idChild, uint thread, uint time)
+        {
+            if (widgets.Count == 0 || hwnd != rootWindow) return;
+            IntPtr fg = Native.GetForegroundWindow();
+            if (lifted || Native.IsDesktopClass(fg)) ApplyShowDesktop(fg);
+        }
+
+        void ApplyShowDesktop(IntPtr hwnd)
+        {
             uint fgPid; Native.GetWindowThreadProcessId(hwnd, out fgPid);
             if (fgPid == (uint)Process.GetCurrentProcess().Id) return;   // clicking a widget or its menu changes nothing
             // "Show desktop" raises the desktop window above everything; a plain click on the wallpaper does not.
             bool showDesktop = hwnd != IntPtr.Zero && Native.IsDesktopClass(hwnd) && DesktopIsRaised(hwnd);
+            lifted = showDesktop;
             foreach (var w in widgets)
             {
                 w.SetShowDesktopMode(showDesktop);
@@ -288,6 +310,7 @@ namespace Pixill
             // Each step is independent: when an installer closes the program it may already have destroyed
             // some of our hidden helper windows, and one failed clean-up step must not stop the exit.
             try { if (hook != IntPtr.Zero) { Native.UnhookWinEvent(hook); hook = IntPtr.Zero; } } catch { }
+            try { if (reorderHook != IntPtr.Zero) { Native.UnhookWinEvent(reorderHook); reorderHook = IntPtr.Zero; } } catch { }
             try { SystemEvents.SessionSwitch -= OnSessionSwitch; SystemEvents.UserPreferenceChanged -= OnPreferenceChanged; } catch { }
             try { if (watcher != null) watcher.Dispose(); } catch { }
             try { if (tray != null) { tray.Visible = false; tray.Dispose(); } } catch { }

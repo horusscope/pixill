@@ -27,7 +27,7 @@ To check a file (needs the [GitHub CLI](https://cli.github.com/)):
 
 ```
 gh attestation verify Pixill.exe -R horusscope/pixill
-gh attestation verify Pixill-1.0.1.msi -R horusscope/pixill
+gh attestation verify Pixill-1.0.2.msi -R horusscope/pixill
 ```
 
 All attestations are also listed at

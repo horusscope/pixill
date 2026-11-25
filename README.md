@@ -43,7 +43,7 @@ directly with every other.
 You need Windows 10 or 11. Pick one from the
 [latest release](https://github.com/horusscope/pixill/releases/latest):
 
-| | `Pixill.exe` | `Pixill-1.0.1.msi` |
+| | `Pixill.exe` | `Pixill-1.0.2.msi` |
 |---|---|---|
 | What it is | The whole program in one file | An installer |
 | Where it goes | Wherever you put it | `C:\Program Files\Pixill`, with a Start menu entry |
@@ -70,7 +70,7 @@ yet, so SmartScreen may still warn the first time you run one;
 pending.
 
 Installer switches, for scripted installs:
-`msiexec /i Pixill-1.0.1.msi AUTOSTART=0` leaves it out of Windows start-up,
+`msiexec /i Pixill-1.0.2.msi AUTOSTART=0` leaves it out of Windows start-up,
 and `LAUNCH=0` stops it starting when the install finishes. Uninstalling
 leaves your settings file in place.
 
@@ -194,7 +194,6 @@ computer, and your settings stay in the local `config.json`.
   against the previous close as Yahoo reports it.
 - **Windows only,** and written for one desktop at a time: it lives on the
   display you drag it to.
-- **Show desktop (Win+D)** is handled in code but has had very little testing.
 - **The lock screen is out of reach.** Windows does not let ordinary programs
   draw there.
 - The right-click menus use the standard Windows look, not the pixel theme.

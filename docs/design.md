@@ -33,13 +33,21 @@ the bottom of the z-order: every time Windows is about to change its
 position, it answers "below everything". It is a tool window, so it has no
 taskbar button and does not appear in Alt+Tab.
 
-"Show desktop" is the awkward case. It does not minimise windows; it raises
-the desktop above them, which would bury a bottom-pinned window. Pixill
-listens for foreground changes, and when the desktop itself comes to the
-front *and* is above the ordinary windows, it lifts the widget over it until
-something else takes the foreground. Clicking the wallpaper also brings the
-desktop to the foreground but does not raise it, which is how the two cases
-are told apart. This path has had very little real-world testing.
+"Show desktop" (Win+D) is the awkward case. It raises the desktop above the
+other windows, which buries a bottom-pinned window. When the desktop has the
+foreground *and* is above the ordinary windows, Pixill lifts the widget over
+it until something else takes the foreground. Clicking the wallpaper also
+gives the desktop the foreground but does not raise it, which is how the two
+cases are told apart.
+
+Version 1.0.1 got this wrong: the widget vanished on Win+D. Windows announces
+the desktop as the new foreground window about 12 ms *before* it raises it,
+so a check made on that announcement always answered "not raised". No message
+reaches the widget's own window, since it does not move. What Windows does
+emit when the raise happens is a reorder event for the top-level windows, and
+Pixill now responds to that as well. Reorders are frequent, so nothing is
+examined unless the desktop has the foreground or the widget is already
+lifted. The wallpaper-click case has still not been tested directly.
 
 Stocks and weather began as two windows. They were merged because two things
 that are always read together should move, size and theme together, and
@@ -232,7 +240,6 @@ uninstall was re-tested with the program running.
 
 ## Known gaps
 
-- The Show desktop path is essentially untested.
 - Whether the visibility test is right on unusual setups (overlays that are
   neither transparent nor click-through, for instance) is not established.
 - There is one widget on one display. Multiple instances are prevented.
